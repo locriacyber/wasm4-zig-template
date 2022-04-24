@@ -61,10 +61,14 @@ pub const DrawColors = packed struct {
 
 pub const ColorIndex = enum(u4) {
     transparent = 0,
-    _0   = 1,
-    _1   = 2,
-    _2   = 3,
-    _3   = 4,
+    /// Use palette[0]
+    p0   = 1,
+    /// Use palette[1]
+    p1   = 2,
+    /// Use palette[2]
+    p2   = 3,
+    /// Use palette[3]
+    p3   = 4,
 };
 
 pub const GamePad = packed struct {
@@ -80,9 +84,12 @@ pub const GamePad = packed struct {
 pub const Mouse = packed struct {
     x: i16,
     y: i16,
-    _0: bool, // primary button
-    _1: bool, // secondary button
-    _2: bool, // third button
+    /// primary button
+    b0: bool,
+    /// secondary button
+    b1: bool,
+    /// third button
+    b2: bool,
     _reserved: u5,
 };
 
@@ -94,12 +101,25 @@ pub const SystemFlags = packed struct {
 
 // ┌───────────────────────────────────────────────────────────────────────────┐
 // │                                                                           │
+// │ Raw Functions                                                             │
+// │                                                                           │
+// └───────────────────────────────────────────────────────────────────────────┘
+
+const raw_api = struct {
+    extern fn blit(sprite: [*]const u8, x: u32, y: u32, width: u32, height: u32, flags: u32) void;
+    extern fn blitSub(sprite: [*]const u8, x: u32, y: u32, width: u32, height: u32, src_x: u32, src_y: u32, stride: u32, flags: u32) void;
+    extern fn tone(frequency: u32, duration: u32, volume: u32, flags: u32) void;
+};
+
+// ┌───────────────────────────────────────────────────────────────────────────┐
+// │                                                                           │
 // │ Drawing Functions                                                         │
 // │                                                                           │
 // └───────────────────────────────────────────────────────────────────────────┘
 
 pub const BlitFlags = packed struct {
-    _2bpp:  bool = false,
+    /// one or two bits per pixel
+    two_bits:  bool = false,
     flip_x: bool = false,
     flip_y: bool = false,
     rotate: bool = false,
@@ -107,19 +127,18 @@ pub const BlitFlags = packed struct {
 };
 
 /// Copies pixels to the framebuffer.
-pub fn blit(sprite: [*]const u8, x: u32, y: u32, width: u32, height: u32, flags: BlitFlags) void {
-    raw_api.blit(sprite, x, y, width, height, @bitCast(u32, flags));
+pub fn blit(sprite: []const u8, x: u32, y: u32, width: u32, height: u32, flags: BlitFlags) void {
+    
+    raw_api.blit(sprite.ptr, x, y, width, height, @bitCast(u32, flags));
 }
 
 /// Copies a subregion within a larger sprite atlas to the framebuffer.
-pub fn blitSub(sprite: [*]const u8, x: u32, y: u32, width: u32, height: u32, src_x: u32, src_y: u32, stride: u32, flags: BlitFlags) void {
-    raw_api.blitSub(sprite, x, y, width, height, src_x, src_y, stride, @bitCast(u32, flags));
+/// srcX: Source X position of the sprite region.
+/// srcY: Source Y position of the sprite region.
+/// stride: Total width of the overall sprite atlas. This is typically larger than width.
+pub fn blitSub(sprite: []const u8, x: u32, y: u32, width: u32, height: u32, src_x: u32, src_y: u32, stride: u32, flags: BlitFlags) void {
+    raw_api.blitSub(sprite.ptr, x, y, width, height, src_x, src_y, stride, @bitCast(u32, flags));
 }
-
-const raw_api = struct {
-    extern fn blit(sprite: [*]const u8, x: u32, y: u32, width: u32, height: u32, flags: u32) void;
-    extern fn blitSub(sprite: [*]const u8, x: u32, y: u32, width: u32, height: u32, src_x: u32, src_y: u32, stride: u32, flags: u32) void;
-};
 
 /// Draws a line between two points.
 pub extern fn line(x1: u32, y1: u32, x2: u32, y2: u32) void;
@@ -149,12 +168,74 @@ pub extern fn hline(x: u32, y: u32, len: u32) void;
 // └───────────────────────────────────────────────────────────────────────────┘
 
 /// Plays a sound tone.
-pub extern fn tone(frequency: u32, duration: u32, volume: u32, flags: u32) void;
+/// frequency: Wave frequency in hertz.
+/// duration: Duration of the tone in frames (1/60th of a second), up to 255 frames.
+/// volume: Volume of the sustain and attack durations, between 0 and 100.
+pub fn tone(frequency: Tone.Frequency, duration: Tone.Duration, volume: Tone.Volume, flags: Tone.Flags) void {
+    std.debug.assert(volume.is_valid());
+    tone(@bitCast(u32, frequency), @bitCast(u32, duration), @bitCast(u32, volume), @bitCast(u32, flags));
+}
 
-pub const TONE_PULSE1: u32 = 0;
-pub const TONE_PULSE2: u32 = 1;
-pub const TONE_TRIANGLE: u32 = 2;
-pub const TONE_NOISE: u32 = 3;
+pub const Tone = struct {
+    /// Wave frequency in hertz.
+    pub const Frequency = packed struct {
+        start: u16,
+        end: u16 = 0,
+    };
+    
+    /// Duration of ADSR of note (unit: frames)
+    ///
+    ///          ^
+    ///         / \ decay
+    /// attack /   \ 
+    ///       /     \--------
+    ///      /       sustain \ release
+    ///     /                 \
+    pub const Duration = packed struct {
+        sustain : u8 = 0,
+        release : u8 = 0,
+        decay   : u8 = 0,
+        attack  : u8 = 0,
+    };
+    
+    /// Volume of note (0 to 100)
+    ///
+    ///          ^  <-- attack volume
+    ///         / \
+    ///        /   \ 
+    ///       /     \--------  <-- sustain valume
+    ///      /               \
+    ///     /                 \
+    pub const Volume = packed struct {
+        sustain : u8 = 100,
+        attack  : u8 = 100,
+
+        pub fn is_valid(volume: @This()) bool {
+            return (0 <= volume.sustain) and (volume.sustain <= 100)
+               and (0 <= volume.attack ) and (volume.attack  <= 100);
+        }
+    };
+
+    pub const Flags = packed struct {
+        channel: Channel,
+        pulse_duty: DutyCycle,
+    };
+
+    pub const Channel = enum(u2) {
+        pulse0 = 0,
+        pulse1 = 1,
+        triangle = 2,
+        noise = 3,
+    };
+
+    pub const DutyCycle = enum(u2) {
+        @"1/8" = 0,
+        @"1/4" = 1,
+        @"1/2" = 2,
+        @"3/4" = 3, 
+    };
+};
+
 pub const TONE_MODE1: u32 = 0;
 pub const TONE_MODE2: u32 = 4;
 pub const TONE_MODE3: u32 = 8;

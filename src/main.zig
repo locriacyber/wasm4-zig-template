@@ -12,12 +12,12 @@ const smiley = [8]u8{
 };
 
 export fn update() void {
-    w4.m.colors._0 = ._1;
+    w4.m.colors._0 = .p1;
     w4.text("Hello from Zig!", 10, 10);
 
     const gamepad = w4.m.gamepads[0];
     if (gamepad.x) {
-        w4.m.colors._0 = ._3;
+        w4.m.colors._0 = .p3;
     }
 
     w4.blit(&smiley, 76, 76, 8, 8, .{});
