@@ -43,7 +43,17 @@ comptime {
     assert_equal(@bitSizeOf(Memory), 64 * 1024 * 8, "Memory layout wrong");
 }
 
-pub const m = @intToPtr(*allowzero Memory, 0);
+const dummym: Memory = undefined;
+
+pub const m = struct {
+    pub const palette     = @intToPtr(*@TypeOf(dummym.palette    ), 0 + @offsetOf(Memory, "palette"    ));
+    pub const colors      = @intToPtr(*@TypeOf(dummym.colors     ), 0 + @offsetOf(Memory, "colors"     ));
+    pub const gamepads    = @intToPtr(*@TypeOf(dummym.gamepads   ), 0 + @offsetOf(Memory, "gamepads"   ));
+    pub const mouse       = @intToPtr(*@TypeOf(dummym.mouse      ), 0 + @offsetOf(Memory, "mouse"      ));
+    pub const system      = @intToPtr(*@TypeOf(dummym.system     ), 0 + @offsetOf(Memory, "system"     ));
+    pub const framebuffer = @intToPtr(*@TypeOf(dummym.framebuffer), 0 + @offsetOf(Memory, "framebuffer"));
+    pub const userdata    = @intToPtr(*@TypeOf(dummym.userdata   ), 0 + @offsetOf(Memory, "userdata"   ));
+};
 
 pub const Color = packed struct {
     blue  : u8,
