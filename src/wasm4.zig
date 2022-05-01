@@ -82,8 +82,8 @@ pub const ColorIndex = enum(u4) {
 };
 
 pub const GamePad = packed struct {
-    x: bool,
-    z: bool,
+    a: bool,
+    b: bool,
     _reserved: u2,
     left: bool,
     right: bool,
